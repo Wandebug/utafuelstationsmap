@@ -5,43 +5,113 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UTA Fuel Stations — Open in Google Maps for True Distance</title>
   <style>
-    :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; }
+    :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --brand:#111827; --pillbg:#eef2ff; --pillbd:#c7d2fe; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--ink);}
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--ink); background:#fff; }
     header { padding:16px; background:#0f172a; color:#fff; }
     header h1 { margin:0 0 4px; font-size:18px; }
     header .sub { color:#cbd5e1; font-size:12px; }
-    main { padding:16px; max-width: 860px; margin:0 auto; }
-    .row { display:grid; grid-template-columns: 1fr auto auto; gap:8px; margin-bottom:10px; }
+    main { padding:16px; max-width: 960px; margin:0 auto; }
+
+    /* controls */
+    .seg { display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; }
+    .seg button { padding:10px 14px; border:0; background:transparent; cursor:pointer; font-weight:600; color:var(--muted); }
+    .seg button.active { background:#0f172a; color:#fff; }
+
+    .panel { margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+
+    .row { display:grid; grid-template-columns: 1fr auto auto; gap:8px; margin-bottom:6px; }
+    .row2 { display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom:6px; }
     input[type="text"] { padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:15px; }
-    button { padding:10px 12px; border:1px solid #334155; background:#111827; color:#fff; border-radius:10px; cursor:pointer; }
+    input[disabled] { background:#f1f5f9; color:#94a3b8; }
+    button.go { padding:10px 12px; border:1px solid #334155; background:var(--brand); color:#fff; border-radius:10px; cursor:pointer; }
+
     .small { font-size:12px; color:var(--muted); }
-    .result-item { border:1px solid var(--line); border-radius:10px; padding:12px; margin:10px 0; background:#f8fafc; }
-    .title { font-weight:600; }
+
+    /* High‑visibility status banner (placed BELOW the search bars) */
+    .status-banner { 
+      display:flex; align-items:center; gap:10px; 
+      padding:12px 14px; margin:8px 0 8px; 
+      border:1px solid var(--line); border-radius:12px; 
+      background: linear-gradient(180deg, #eef2ff, #f8fafc);
+      box-shadow: 0 1px 0 #e5e7eb inset;
+      font-size:14px; color:#111827; 
+    }
+    .status-banner .dot { width:12px; height:12px; border-radius:999px; background:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.15); animation: blink 1s infinite; }
+    .status-banner .tag { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--pillbd); background:var(--pillbg); color:#3730a3; }
+    .status-banner.ok { background:linear-gradient(180deg, #ecfdf5, #f8fafc); border-color:#a7f3d0; }
+    .status-banner.ok .dot { background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.15); }
+    .status-banner.warn { background:linear-gradient(180deg, #fff7ed, #f8fafc); border-color:#fed7aa; }
+    .status-banner.warn .dot { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+
+    @keyframes blink { 50% { opacity:.3 } }
+
+    .result-item { border:1px solid var(--line); border-radius:10px; padding:12px; margin:10px 0; background:var(--bg); }
+    .title { font-weight:700; }
     .muted { color:var(--muted); }
     .stack { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    .pill { display:inline-block; padding:8px 12px; border-radius:999px; background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; font-size:12px; text-decoration:none; }
+    .pill { display:inline-block; padding:8px 12px; border-radius:999px; background:var(--pillbg); border:1px solid var(--pillbd); color:#3730a3; font-size:12px; text-decoration:none; }
+
+    details { margin-top:10px }
   </style>
 </head>
 <body>
   <header>
-    <h1>Find Nearest Approved UTA Stations</h1>
+    <h1>Find Approved UTA Stations</h1>
     <div class="sub">For exact distance & ETA, we open Google Maps directly.</div>
   </header>
 
   <main>
-    <div class="row">
-      <input id="addr" type="text" placeholder="Type driver address (e.g., 'Atoomweg, 3542 Utrecht, NL')" />
-      <button id="go">Find</button>
-      <button id="myloc">Use my location</button>
+    <!-- mode switch -->
+    <div class="seg" role="tablist" aria-label="Search mode">
+      <button id="tab-near" class="active" role="tab" aria-selected="true">Nearest</button>
+      <button id="tab-route" role="tab" aria-selected="false">Along Route</button>
     </div>
-    <div class="small" id="status">Preparing stations…</div>
-    <div id="results"></div>
 
-    <details style="margin-top:10px">
+    <!-- Nearest panel -->
+    <div id="panel-near" class="panel" role="tabpanel" aria-labelledby="tab-near">
+      <div class="row">
+        <input id="addr" type="text" placeholder="Type driver address (e.g., 'Atoomweg, 3542 Utrecht, NL')" />
+        <button id="go" class="go">Find</button>
+        <button id="myloc" class="go" title="Use my GPS location">Use my location</button>
+      </div>
+      <div id="statusNear" class="status-banner warn" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <div>
+          <div style="font-weight:700">Preparing stations…</div>
+          <div class="small">Please wait for the fuel stations to load. Typing is enabled when ready.</div>
+        </div>
+        <span class="tag">Nearest</span>
+      </div>
+      <div id="results"></div>
+    </div>
+
+    <!-- Along Route panel -->
+    <div id="panel-route" class="panel" role="tabpanel" aria-labelledby="tab-route" hidden>
+      <div class="row2">
+        <input id="start" type="text" placeholder="Start / current location" />
+        <input id="end" type="text" placeholder="Destination address" />
+        <button id="goRoute" class="go">Find along route</button>
+      </div>
+      <div id="statusRoute" class="status-banner warn" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <div>
+          <div style="font-weight:700">Preparing stations…</div>
+          <div class="small">Please wait for the fuel stations to load. Then enter start & destination and press Find.</div>
+        </div>
+        <span class="tag">Along Route</span>
+      </div>
+      <div id="resultsRoute"></div>
+      <details>
+        <summary class="small">How this works</summary>
+        <div class="small">We geocode start & end (free service), draw a straight line between them, then list stations along the path (not by km). Open Google Maps to get true road distance/ETA.</div>
+      </details>
+    </div>
+
+    <details>
       <summary class="small">What this shows (and why)</summary>
       <div class="small">
-        We list the nearest 3 approved stations from your list. We do <b>not</b> show km/ETA here so that Google Maps is the single, accurate source of truth.
+        We list the nearest 3 stations (Nearest tab) or the stations along your route (Along Route tab). We do <b>not</b> display km/ETA inside this page so that Google Maps remains the single, accurate source of truth.
       </div>
     </details>
   </main>
@@ -58,7 +128,39 @@
 
     let stationsWithCoords = [];
 
-    function setStatus(html) { document.getElementById('status').innerHTML = html; }
+    // UI helpers (banners)
+    const statusNearEl = document.getElementById('statusNear');
+    const statusRouteEl = document.getElementById('statusRoute');
+
+    function setStatusNear(title, mode = 'warn', subText = '') {
+      if (!statusNearEl) return;
+      statusNearEl.classList.remove('ok','warn');
+      statusNearEl.classList.add(mode);
+      const titleEl = statusNearEl.querySelector('div > div:nth-child(1)');
+      const subEl = statusNearEl.querySelector('div > div:nth-child(2)');
+      if (titleEl) titleEl.textContent = title;
+      if (subEl) subEl.textContent = subText || (mode === 'ok' ? 'Open any option to get true road distance & ETA in Google Maps.' : 'Typing is enabled when ready.');
+    }
+    function setStatusRoute(title, mode = 'warn', subText = '') {
+      if (!statusRouteEl) return;
+      statusRouteEl.classList.remove('ok','warn');
+      statusRouteEl.classList.add(mode);
+      const titleEl = statusRouteEl.querySelector('div > div:nth-child(1)');
+      const subEl = statusRouteEl.querySelector('div > div:nth-child(2)');
+      if (titleEl) titleEl.textContent = title;
+      if (subEl) subEl.textContent = subText || (mode === 'ok' ? 'Showing all approved stations ordered along your path. Open one to continue in Google Maps.' : 'Enter start and destination, then press Find.');
+    }
+
+    function disableNearest(disabled) {
+      document.getElementById('addr').disabled = disabled;
+      document.getElementById('go').disabled = disabled;
+      document.getElementById('myloc').disabled = disabled;
+    }
+    function disableRoute(disabled) {
+      document.getElementById('start').disabled = disabled;
+      document.getElementById('end').disabled = disabled;
+      document.getElementById('goRoute').disabled = disabled;
+    }
 
     function haversineKm(lat1, lon1, lat2, lon2) {
       const R = 6371;
@@ -71,20 +173,39 @@
       return R * c;
     }
 
-    // Extract exact lat/lng from a Google Maps link if present
+    // Distance from point P to segment AB (in km), and t (0..1) projection along AB
+    function pointToSegmentInfo(A, B, P) {
+      const R = 6371000; // m
+      const toXY = (ref, Q) => {
+        const lam0 = ref.lng * Math.PI/180, phi0 = ref.lat * Math.PI/180;
+        const lam = Q.lng * Math.PI/180, phi = Q.lat * Math.PI/180;
+        const x = (lam - lam0) * Math.cos((phi + phi0)/2) * R;
+        const y = (phi - phi0) * R;
+        return {x,y};
+      };
+      const a = toXY(A, A);
+      const b = toXY(A, B);
+      const p = toXY(A, P);
+      const abx = b.x - a.x, aby = b.y - a.y;
+      const apx = p.x - a.x, apy = p.y - a.y;
+      const ab2 = abx*abx + aby*aby || 1; // avoid /0
+      let t = (apx*abx + apy*aby)/ab2;
+      t = Math.max(0, Math.min(1, t));
+      const proj = { x: a.x + t*abx, y: a.y + t*aby };
+      const dx = p.x - proj.x, dy = p.y - proj.y;
+      const distKm = Math.sqrt(dx*dx + dy*dy)/1000;
+      const alongKm = Math.sqrt((proj.x-a.x)**2 + (proj.y-a.y)**2)/1000;
+      return { distKm, t, alongKm };
+    }
+
     function extractLatLngFromMapsLink(url) {
       if (!url) return null;
       try {
         const decoded = decodeURIComponent(url);
-
-        // Pattern A: ".../@lat,lng,"
         let m = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
-
         const u = new URL(decoded);
-
-        // Pattern B: q=lat,lng  or query=lat,lng  or destination=lat,lng
-        const tryParams = ["q", "query", "destination"];
+        const tryParams = ["q", "query", "destination"]; 
         for (const p of tryParams) {
           const val = u.searchParams.get(p);
           if (val && /-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(val)) {
@@ -92,17 +213,14 @@
             return { lat: parseFloat(la), lng: parseFloat(ln) };
           }
         }
-
-        // Pattern C: dir segment with coordinates ".../dir/lat,lng/..."
         m = decoded.match(/\/dir\/(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
-
       } catch (e) { }
       return null;
     }
 
-    async function geocode(query) {
-      const url = PHOTON_URL.replace("{q}", encodeURIComponent(query));
+    async function geocode(q) {
+      const url = PHOTON_URL.replace("{q}", encodeURIComponent(q));
       try {
         const res = await fetch(url);
         if (!res.ok) return null;
@@ -116,13 +234,10 @@
     }
 
     async function geocodeStations() {
-      // Prefer exact coords from the station Google link; else geocode address
       let cache = {};
       try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); } catch (e) {}
       stationsWithCoords = [];
-      let exact = 0, geo = 0, i = 0;
       for (const s of STATIONS) {
-        i++;
         if (cache[s.mapsLink]) {
           stationsWithCoords.push({ ...s, lat: cache[s.mapsLink].lat, lng: cache[s.mapsLink].lng, source: cache[s.mapsLink].source });
           continue;
@@ -131,20 +246,19 @@
         if (parsed) {
           stationsWithCoords.push({ ...s, lat: parsed.lat, lng: parsed.lng, source: "link" });
           cache[s.mapsLink] = { lat: parsed.lat, lng: parsed.lng, source: "link" };
-          exact++;
         } else {
           const res = await geocode(s.name + " " + s.address);
           if (res) {
             stationsWithCoords.push({ ...s, lat: res.lat, lng: res.lng, source: "geocode" });
             cache[s.mapsLink] = { lat: res.lat, lng: res.lng, source: "geocode" };
-            geo++;
           }
         }
-        setStatus(`Preparing stations… exact coords: <b>${exact}</b>, geocoded: <b>${geo}</b> (${i}/${STATIONS.length})`);
-        await sleep(180);
+        setStatusNear('Preparing stations…', 'warn', 'Please wait for the fuel stations to load. Typing is enabled when ready.');
+        setStatusRoute('Preparing stations…', 'warn', 'Please wait for the fuel stations to load. Then enter start & destination and press Find.');
       }
       localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-      setStatus(`Stations ready. Enter driver address and click Find.`);
+      setStatusNear('Stations ready.', 'ok', 'Enter driver address, press Find, then open a result in Google Maps.');
+      setStatusRoute('Stations ready.', 'ok', 'Enter start & destination, press Find, then choose a station to open Google Maps (origin → station → destination).');
     }
 
     function buildGmapsNavURL(originText, destLat, destLng) {
@@ -152,8 +266,14 @@
       const destination = encodeURIComponent(destLat + "," + destLng);
       return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
     }
+    function buildGmapsViaURL(startText, viaLat, viaLng, endText) {
+      const origin = encodeURIComponent(startText.trim());
+      const destination = encodeURIComponent(endText.trim());
+      const waypoint = encodeURIComponent(viaLat + "," + viaLng);
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoint}&travelmode=driving`;
+    }
 
-    function renderResults(originText, top3) {
+    function renderNearest(originText, top3) {
       const wrap = document.getElementById('results');
       wrap.innerHTML = '';
       top3.forEach((s, idx) => {
@@ -173,8 +293,32 @@
       });
     }
 
-    async function computeTop3(origin) {
-      // Rank by simple air distance for selection only (we won't display km here)
+    function renderRoute(startText, endText, items) {
+      const wrap = document.getElementById('resultsRoute');
+      wrap.innerHTML = '';
+      if (!items.length) {
+        setStatusRoute('No stations along this route.', 'warn', 'Try different start/destination or use the Nearest tab.');
+        wrap.innerHTML = '<div class="small">No stations found.</div>';
+        return;
+      }
+      items.forEach((s, idx) => {
+        const viaUrl = buildGmapsViaURL(startText, s.lat, s.lng, endText);
+        const src = s.source === 'link' ? 'from link' : 'geocoded';
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        div.innerHTML = `
+          <div class="title">${idx+1}) ${s.name}</div>
+          <div class="muted">${s.address} · <span style="font-size:11px;border:1px solid var(--line);padding:2px 8px;border-radius:999px;">${src}</span></div>
+          <div class="stack">
+            <a class="pill" target="_blank" href="${viaUrl}">Open in Google Maps (via this station)</a>
+            <a class="pill" target="_blank" href="${s.mapsLink}">Open station link</a>
+          </div>
+        `;
+        wrap.appendChild(div);
+      });
+    }
+
+    async function computeNearestTop3(origin) {
       const scored = stationsWithCoords.map(s => ({ ...s, airKm: haversineKm(origin.lat, origin.lng, s.lat, s.lng) }));
       scored.sort((a,b) => a.airKm - b.airKm);
       return scored.slice(0,3);
@@ -182,34 +326,93 @@
 
     async function handleFindFromText() {
       const raw = (document.getElementById('addr').value || '').trim();
-      if (!raw) { setStatus('Type an address first.'); return; }
-      setStatus('Locating address…');
+      if (!raw) { setStatusNear('Type an address first.', 'warn', 'Example: "Atoomweg, 3542 Utrecht, NL"'); return; }
+      disableNearest(true);
+      setStatusNear('Searching…', 'warn', 'Locating the address and computing nearest approved stations.');
       const origin = await geocode(raw);
-      if (!origin) { setStatus('Could not find that address. Try a fuller address.'); return; }
-      const top3 = await computeTop3(origin);
-      setStatus('Open any option in Google Maps for exact distance & ETA.');
-      renderResults(raw, top3);
+      if (!origin) { setStatusNear('Could not find that address.', 'warn', 'Try a fuller, more specific address.'); disableNearest(false); return; }
+      const top3 = await computeNearestTop3(origin);
+      setStatusNear('Results ready.', 'ok', 'Open any option to get true road distance & ETA in Google Maps.');
+      renderNearest(raw, top3);
+      disableNearest(false);
     }
 
     function handleUseMyLocation() {
-      if (!navigator.geolocation) { setStatus('Geolocation not supported by your browser.'); return; }
-      setStatus('Getting your location…');
+      if (!navigator.geolocation) { setStatusNear('Geolocation not supported by your browser.', 'warn'); return; }
+      disableNearest(true);
+      setStatusNear('Getting your location…', 'warn', 'Computing nearest approved stations.');
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        // We'll still pass a readable origin text to Google (lat,lng works too)
         const originText = origin.lat.toFixed(6) + "," + origin.lng.toFixed(6);
-        const top3 = await computeTop3(origin);
-        setStatus('Open any option in Google Maps for exact distance & ETA.');
-        renderResults(originText, top3);
-      }, (err) => setStatus('Location error: ' + err.message), { enableHighAccuracy: true, timeout: 8000 });
+        const top3 = await computeNearestTop3(origin);
+        setStatusNear('Results ready.', 'ok', 'Open any option to get true road distance & ETA in Google Maps.');
+        renderNearest(originText, top3);
+        disableNearest(false);
+      }, (err) => { setStatusNear('Location error', 'warn', err.message); disableNearest(false); }, { enableHighAccuracy: true, timeout: 8000 });
     }
 
+    async function handleFindAlongRoute() {
+      const sRaw = (document.getElementById('start').value || '').trim();
+      const eRaw = (document.getElementById('end').value || '').trim();
+      if (!sRaw || !eRaw) { setStatusRoute('Type start & destination first.', 'warn', 'Example: "2742 Waddinxveen, NL" and "3449 JK Woerden"'); return; }
+      disableRoute(true);
+      setStatusRoute('Searching route…', 'warn', 'Geocoding start & destination, then ordering all stations along your path.');
+      const [S, E] = await Promise.all([geocode(sRaw), geocode(eRaw)]);
+      if (!S || !E) { setStatusRoute('Could not geocode one of the addresses.', 'warn', 'Try being more specific (street, city, country).'); disableRoute(false); return; }
+      // ONLY stations along the path (strict)
+      const filtered = [];
+      for (const st of stationsWithCoords) {
+        const info = pointToSegmentInfo(S, E, st);
+        if (info.distKm < 5 && info.t >= 0 && info.t <= 1) { // stations within the 5km corridor and on path
+          filtered.push({ ...st, offsetKm: info.distKm, alongKm: info.alongKm, t: info.t });
+        }
+      }
+      // if no stations along the route
+      if (filtered.length === 0) {
+        setStatusRoute('No stations along the highway.', 'warn', 'There are no petrol stations directly on the highway. You can try the Nearest tab for stations nearby.');
+      }
+      // sort by along-path order, then by small offset
+      filtered.sort((a,b) => a.alongKm - b.alongKm || a.offsetKm - b.offsetKm);
+      setStatusRoute('Results ready.', 'ok', 'Showing all approved stations ordered along your path. Open one to continue in Google Maps.');
+      renderRoute(sRaw, eRaw, filtered);
+      disableRoute(false);
+    }
+
+    // Tabs
+    (function tabs(){
+      const tabNear = document.getElementById('tab-near');
+      const tabRoute = document.getElementById('tab-route');
+      const panelNear = document.getElementById('panel-near');
+      const panelRoute = document.getElementById('panel-route');
+      tabNear.addEventListener('click', () => {
+        tabNear.classList.add('active'); tabNear.setAttribute('aria-selected','true');
+        tabRoute.classList.remove('active'); tabRoute.setAttribute('aria-selected','false');
+        panelNear.hidden = false; panelRoute.hidden = true;
+      });
+      tabRoute.addEventListener('click', () => {
+        tabRoute.classList.add('active'); tabRoute.setAttribute('aria-selected','true');
+        tabNear.classList.remove('active'); tabNear.setAttribute('aria-selected','false');
+        panelNear.hidden = true; panelRoute.hidden = false;
+      });
+    })();
+
+    // Init
     (async function () {
-      if (!STATIONS.length) { setStatus('No approved stations with links were found.'); return; }
+      if (!STATIONS.length) {
+        setStatusNear('No approved stations found.', 'warn');
+        setStatusRoute('No stations loaded.', 'warn');
+        return;
+      }
+      disableNearest(true); disableRoute(true);
       await geocodeStations();
+      disableNearest(false); disableRoute(false);
+      // handlers
       document.getElementById('go').addEventListener('click', handleFindFromText);
       document.getElementById('myloc').addEventListener('click', handleUseMyLocation);
       document.getElementById('addr').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleFindFromText(); });
+      document.getElementById('goRoute').addEventListener('click', handleFindAlongRoute);
+      document.getElementById('start').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleFindAlongRoute(); });
+      document.getElementById('end').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleFindAlongRoute(); });
     })();
   </script>
 </body>
